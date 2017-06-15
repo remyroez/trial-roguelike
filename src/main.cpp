@@ -2,8 +2,7 @@
 
 TERMINAL_TAKE_CARE_OF_WINMAIN
 
-int main()
-{
+int main() {
 	terminal_open();
 
 	// Printing text
@@ -12,10 +11,8 @@ int main()
 	terminal_set("jpn font: ./asset/misaki_gothic.ttf, size=8x8, hinting=none");
 	terminal_set("font: ./asset/terminal8x8_gs_ro.png, size=8x8");
 
-	for (int i = 0; i < 50; i++)
-	{
-		for (int j = 0; j < 50; j++)
-		{
+	for (int i = 0; i < 50; i++) {
+		for (int j = 0; j < 50; j++) {
 			terminal_print(i, j, "#");
 		}
 	}
