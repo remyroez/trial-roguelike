@@ -44,5 +44,8 @@
     <ClInclude Include="..\..\src\rl\frame.hpp">
       <Filter>ソース ファイル\rl</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\rl\tile_dictionary.hpp">
+      <Filter>ソース ファイル\rl</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

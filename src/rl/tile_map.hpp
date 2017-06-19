@@ -13,11 +13,13 @@ namespace rl {
 
 class tile_map {
 public:
+	using tile_list = std::vector<tile::handle>;
+
 	tile_map(int w, int h) : _width(w), _height(h) {
 		resize();
 	}
 
-	tile_map(int w, int h, const tile &tile) : tile_map(w, h) {
+	tile_map(int w, int h, tile::handle tile) : tile_map(w, h) {
 		fill(tile);
 	}
 
@@ -46,16 +48,16 @@ public:
 		resize();
 	}
 
-	void fill(const tile &tile) {
+	void fill(tile::handle tile) {
 		std::fill(_tiles.begin(), _tiles.end(), tile);
 	}
 
-	const tile &get(size_t index) const {
+	tile::handle get(size_t index) const {
 		assert(index < _tiles.size());
 		return _tiles[index];
 	}
 
-	const tile &get(int x, int y) const {
+	tile::handle get(int x, int y) const {
 		assert(x < width());
 		assert(y < height());
 		return get(y * width() + x);
@@ -87,7 +89,7 @@ public:
 		return get(rect.x, rect.y, rect.width, rect.height);
 	}
 
-	void set(size_t index, const tile &tile) {
+	void set(size_t index, tile::handle tile) {
 		if (index >= _tiles.size()) {
 			// index over
 		}
@@ -96,7 +98,7 @@ public:
 		}
 	}
 
-	void set(int x, int y, const tile &tile) {
+	void set(int x, int y, tile::handle tile) {
 		if (x >= width()) {
 			// x over
 		}
@@ -108,6 +110,14 @@ public:
 		}
 	}
 
+	void set(const rect &rect, tile::handle tile) {
+		for (int i = 0; i < rect.width; i++) {
+			for (int j = 0; j < rect.height; j++) {
+				set(rect.x + i, rect.y + j, tile);
+			}
+		}
+	}
+
 	void set(const tile_map &map, int x = 0, int y = 0) {
 		for (int i = 0; i < map.width(); i++) {
 			for (int j = 0; j < map.height(); j++) {
@@ -116,10 +126,12 @@ public:
 		}
 	}
 
+	const tile_list &tiles() const { return _tiles; }
+
 private:
 	int _width;
 	int _height;
-	std::vector<tile> _tiles;
+	tile_list _tiles;
 
 };
 

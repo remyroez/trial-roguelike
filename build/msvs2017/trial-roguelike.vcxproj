@@ -147,6 +147,7 @@
     <ClInclude Include="..\..\src\rl\frame.hpp" />
     <ClInclude Include="..\..\src\rl\rect.hpp" />
     <ClInclude Include="..\..\src\rl\symbol.hpp" />
+    <ClInclude Include="..\..\src\rl\tile_dictionary.hpp" />
     <ClInclude Include="..\..\src\rl\tile_map.hpp" />
     <ClInclude Include="..\..\src\util\push_state.hpp" />
   </ItemGroup>
