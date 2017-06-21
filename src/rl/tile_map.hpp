@@ -58,6 +58,8 @@ public:
 	}
 
 	tile::handle get(int x, int y) const {
+		assert(x >= 0);
+		assert(y >= 0);
 		assert(x < width());
 		assert(y < height());
 		return get(y * width() + x);
@@ -70,13 +72,19 @@ public:
 			for (int j = 0; j < map.height(); j++) {
 				auto gx = (x + i);
 				auto gy = (y + j);
-				if (gx > width()) {
+				if (gx >= width()) {
 					// over width
-				}
-				else if (gy > height()) {
+
+				} else if (gy >= height()) {
 					// over height
-				}
-				else {
+
+				} else if (gx < 0) {
+					// over width
+
+				} else if (gy < 0) {
+					// over height
+
+				} else {
 					map.set(i, j, get(x + i, y + j));
 				}
 			}

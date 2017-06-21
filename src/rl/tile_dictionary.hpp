@@ -9,7 +9,7 @@
 namespace rl {
 
 template <typename T>
-using base_tile_dictionary = std::unordered_map<T, tile::ptr>;
+using base_tile_dictionary = std::unordered_map<T, tile::pointer>;
 
 }  // namespace rl
 

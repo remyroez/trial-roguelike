@@ -9,7 +9,7 @@
 namespace rl {
 
 struct tile {
-	using ptr = std::shared_ptr<tile>;
+	using pointer = std::shared_ptr<tile>;
 	using handle = std::weak_ptr<tile>;
 
 	symbol_t character = 0;
