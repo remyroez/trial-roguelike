@@ -18,17 +18,34 @@ using tile_dictionary = rl::base_tile_dictionary<std::string>;
 
 tile_dictionary tdic;
 
+inline void render_tile(rl::tile::handle handle, int x = 0, int y = 0) {
+	if (auto ptr = handle.lock()) {
+		terminal_color(ptr->foreground.argb());
+		terminal_bkcolor(ptr->background.argb());
+		terminal_put(x, y, ptr->character);
+	}
 }
 
-TERMINAL_TAKE_CARE_OF_WINMAIN
+inline void render_tile(rl::tile::handle handle, float brightness, int x = 0, int y = 0) {
+	if (auto ptr = handle.lock()) {
+		terminal_color((ptr->foreground * brightness).argb());
+		terminal_bkcolor((ptr->background * brightness).argb());
+		terminal_put(x, y, ptr->character);
+	}
+}
+
+inline void render_tile(rl::tile::handle handle, const rl::color light, int x = 0, int y = 0) {
+	if (auto ptr = handle.lock()) {
+		terminal_color(ptr->foreground.blend(light).argb());
+		terminal_bkcolor(ptr->background.blend(light).argb());
+		terminal_put(x, y, ptr->character);
+	}
+}
 
 void render_tile_map(const rl::tile_map map, int x = 0, int y = 0) {
 	for (int i = 0; i < map.width(); i++) {
 		for (int j = 0; j < map.height(); j++) {
-			auto handle = map.get(i, j);
-			if (auto ptr = handle.lock()) {
-				terminal_put(x + i, y + j, ptr->character);
-			}
+			render_tile(map.get(i, j), x + i, y + j);
 		}
 	}
 }
@@ -36,11 +53,8 @@ void render_tile_map(const rl::tile_map map, int x = 0, int y = 0) {
 void render_tile_map(const rl::tile_map map, std::shared_ptr<TCODMap> tcodmap, int x = 0, int y = 0) {
 	for (int i = 0; i < map.width(); i++) {
 		for (int j = 0; j < map.height(); j++) {
-			auto handle = map.get(i, j);
-			if (auto ptr = handle.lock()) {
-				terminal_bkcolor(tcodmap->isInFov(x + i, y + j) ? "gray" : "black");
-				terminal_put(x + i, y + j, ptr->character);
-			}
+			render_tile(map.get(i, j), (tcodmap->isInFov(x + i, y + j) ? 1.0f : 0.5f), x + i, y + j);
+			//(map.get(i, j), (tcodmap->isInFov(x + i, y + j) ? rl::color_white : rl::color_black), x + i, y + j);
 		}
 	}
 }
@@ -48,11 +62,8 @@ void render_tile_map(const rl::tile_map map, std::shared_ptr<TCODMap> tcodmap, i
 void render_tile_map(const rl::tile_map map, const TCODMap &tcodmap, int x = 0, int y = 0) {
 	for (int i = 0; i < map.width(); i++) {
 		for (int j = 0; j < map.height(); j++) {
-			auto handle = map.get(i, j);
-			if (auto ptr = handle.lock()) {
-				terminal_bkcolor(tcodmap.isInFov(x + i, y + j) ? "gray" : "black");
-				terminal_put(x + i, y + j, ptr->character);
-			}
+			render_tile(map.get(i, j), (tcodmap.isInFov(x + i, y + j) ? 1.0f : 0.5f), x + i, y + j);
+			//render_tile(map.get(i, j), (tcodmap.isInFov(x + i, y + j) ? rl::color_white : rl::color_black), x + i, y + j);
 		}
 	}
 }
@@ -99,6 +110,32 @@ void render_frame(const rl::frame frame, const rl::rect rect) {
 		}
 	}
 }
+
+void read_map(const rl::tile_map &tilemap, std::shared_ptr<TCODMap> tcodmap) {
+	for (int i = 0; i < tilemap.width(); i++) {
+		for (int j = 0; j < tilemap.height(); j++) {
+			auto handle = tilemap.get(i, j);
+			if (auto ptr = handle.lock()) {
+				tcodmap->setProperties(i, j, ptr->transparent, ptr->walkable);
+			}
+		}
+	}
+}
+
+void read_map(const rl::tile_map &tilemap, TCODMap &tcodmap) {
+	for (int i = 0; i < tilemap.width(); i++) {
+		for (int j = 0; j < tilemap.height(); j++) {
+			auto handle = tilemap.get(i, j);
+			if (auto ptr = handle.lock()) {
+				tcodmap.setProperties(i, j, ptr->transparent, ptr->walkable);
+			}
+		}
+	}
+}
+
+}
+
+TERMINAL_TAKE_CARE_OF_WINMAIN
 
 void test_frame() {
 	using namespace rl;
@@ -147,28 +184,6 @@ void test_push_state() {
 	terminal_print(2, 0, "vwxyz");
 }
 
-void read_map(const rl::tile_map &tilemap, std::shared_ptr<TCODMap> tcodmap) {
-	for (int i = 0; i < tilemap.width(); i++) {
-		for (int j = 0; j < tilemap.height(); j++) {
-			auto handle = tilemap.get(i, j);
-			if (auto ptr = handle.lock()) {
-				tcodmap->setProperties(i, j, ptr->transparent, ptr->walkable);
-			}
-		}
-	}
-}
-
-void read_map(const rl::tile_map &tilemap, TCODMap &tcodmap) {
-	for (int i = 0; i < tilemap.width(); i++) {
-		for (int j = 0; j < tilemap.height(); j++) {
-			auto handle = tilemap.get(i, j);
-			if (auto ptr = handle.lock()) {
-				tcodmap.setProperties(i, j, ptr->transparent, ptr->walkable);
-			}
-		}
-	}
-}
-
 void test_fov() {
 	auto tcodmap = std::make_shared<TCODMap>(20, 20);
 
@@ -192,19 +207,11 @@ void update_viewport(rl::tile_map &map, rl::actor &you, rl::rect &viewport) {
 	TCODMap fov(viewport.width, viewport.height);
 	read_map(view, fov);
 
-	fov.computeFov(viewport.width / 2, viewport.height / 2, 5, false, FOV_DIAMOND);
+	fov.computeFov(viewport.width / 2, viewport.height / 2, 0, true, FOV_DIAMOND);
 
-	terminal_color("white");
-	terminal_bkcolor("gray");
 	render_tile_map(view, fov, 0, 0);
 
-	terminal_color("red");
-	terminal_bkcolor("transparent");
-	terminal_put(
-		0 + you.x() - viewport.x,
-		0 + you.y() - viewport.y,
-		you.tile().lock()->character
-	);
+	render_tile(you.tile(), 0 + you.x() - viewport.x, 0 + you.y() - viewport.y);
 }
 
 int main() {
@@ -216,20 +223,28 @@ int main() {
 	//terminal_set("jpn font: ./asset/misaki_gothic.ttf, size=8x8, hinting=none");
 	//terminal_set("font: ./asset/terminal8x8_gs_ro.png, size=8x8");
 	//terminal_set("font: ./asset/terminal16x16_gs_ro.png, size=16x16");
+	terminal_set("font: ./asset/terminal8x12_gs_ro.png, size=8x12");
 
 	//terminal_color("gray");
 
-	::tdic.emplace("you", std::make_shared<rl::tile>(U'@'));
+	::tdic.emplace("you", std::make_shared<rl::tile>(U'@', rl::color_red, rl::color_transparent));
 
-	::tdic.emplace("wall", std::make_shared<rl::tile>(U'#', false, false));
-	::tdic.emplace("floor", std::make_shared<rl::tile>(U'.'));
+	::tdic.emplace("wall", std::make_shared<rl::tile>(0xB2, rl::color_white, rl::color_silver, false, false));
+	::tdic.emplace("floor", std::make_shared<rl::tile>(U'.', rl::color_gray, rl::color_black));
+	::tdic.emplace("tree", std::make_shared<rl::tile>(0x05, rl::color_green, rl::color_maroon, false, true));
+	::tdic.emplace("water", std::make_shared<rl::tile>(U'~', rl::color_teal, rl::color_navy, true, false));
 
 	rl::tile_map map(50, 50, tdic.at("wall"));
 	map.set({ 1, 1, 5, 5 }, tdic.at("floor"));
 	map.set({ 7, 1, 8, 8 }, tdic.at("floor"));
 	map.set({ 16, 1, 12, 12 }, tdic.at("floor"));
 
-	map.set({ 1, 3, 40, 1 }, tdic.at("floor"));
+	map.set({ 1, 3, 6, 1 }, tdic.at("floor"));
+	map.set({ 8, 5, 10, 1 }, tdic.at("floor"));
+
+	map.set({ 20, 5, 5, 5 }, tdic.at("tree"));
+
+	map.set({ 23, 3, 1, 10 }, tdic.at("water"));
 
 	rl::rect viewport = { 0, 0, 50 - 1, 25 - 1 };
 
