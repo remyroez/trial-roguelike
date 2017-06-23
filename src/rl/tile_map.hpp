@@ -8,12 +8,14 @@
 
 #include "tile.hpp"
 #include "rect.hpp"
+#include "point.hpp"
 
 namespace rl {
 
 class tile_map {
 public:
-	using tile_list = std::vector<tile::handle>;
+	using tile_container = std::vector<tile::handle>;
+	using explore_set = std::vector<bool>;
 
 	tile_map(int w, int h) : _width(w), _height(h) {
 		resize();
@@ -38,8 +40,13 @@ public:
 		resize();
 	}
 
+	void resize(int size) {
+		_tiles.resize(size);
+		_explored.resize(size);
+	}
+
 	void resize() {
-		_tiles.resize(_width * _height);
+		resize(_width * _height);
 	}
 
 	void resize(int w, int h) {
@@ -50,6 +57,45 @@ public:
 
 	void fill(tile::handle tile) {
 		std::fill(_tiles.begin(), _tiles.end(), tile);
+		std::fill(_explored.begin(), _explored.end(), false);
+	}
+
+	bool explored(size_t index) const {
+		assert(index < _explored.size());
+		return _explored[index];
+	}
+
+	bool explored(int x, int y) const {
+		assert(x >= 0);
+		assert(y >= 0);
+		assert(x < width());
+		assert(y < height());
+		return explored(y * width() + x);
+	}
+
+	void set_explored(size_t index, bool explore) {
+		if (index >= _explored.size()) {
+			// index over
+
+		} else {
+			_explored[index] = explore;
+		}
+	}
+
+	void set_explored(int x, int y, bool explore) {
+		if (x >= width()) {
+			// x over
+
+		} else if (y >= height()) {
+			// y over
+
+		} else {
+			set_explored(y * width() + x, explore);
+		}
+	}
+
+	void set_explored(const point &pos, bool explore) {
+		set_explored(pos.x, pos.y, explore);
 	}
 
 	tile::handle get(size_t index) const {
@@ -63,6 +109,10 @@ public:
 		assert(x < width());
 		assert(y < height());
 		return get(y * width() + x);
+	}
+
+	tile::handle get(const point &pos) const {
+		return get(pos.x, pos.y);
 	}
 
 	tile_map get(int x, int y, int w, int h) const {
@@ -86,6 +136,7 @@ public:
 
 				} else {
 					map.set(i, j, get(x + i, y + j));
+					map.set_explored(i, j, explored(x + i, y + j));
 				}
 			}
 		}
@@ -100,8 +151,7 @@ public:
 	void set(size_t index, tile::handle tile) {
 		if (index >= _tiles.size()) {
 			// index over
-		}
-		else {
+		} else {
 			_tiles[index] = tile;
 		}
 	}
@@ -109,13 +159,17 @@ public:
 	void set(int x, int y, tile::handle tile) {
 		if (x >= width()) {
 			// x over
-		}
-		else if (y >= height()) {
+
+		} else if (y >= height()) {
 			// y over
-		}
-		else {
+
+		} else {
 			set(y * width() + x, tile);
 		}
+	}
+
+	void set(const point &pos, tile::handle tile) {
+		set(pos.x, pos.y, tile);
 	}
 
 	void set(const rect &rect, tile::handle tile) {
@@ -126,21 +180,40 @@ public:
 		}
 	}
 
-	void set(const tile_map &map, int x = 0, int y = 0) {
+	void merge(const tile_map &map, int x = 0, int y = 0) {
 		for (int i = 0; i < map.width(); i++) {
 			for (int j = 0; j < map.height(); j++) {
 				set(x + i, y + j, map.get(i, j));
+				set_explored(x + i, y + j, map.explored(i, j));
 			}
 		}
 	}
 
-	const tile_list &tiles() const { return _tiles; }
+	void merge(const tile_map &map, const point &pos) {
+		merge(map, pos.x, pos.y);
+	}
+
+	void merge_explored(const tile_map &map, int x = 0, int y = 0) {
+		for (int i = 0; i < map.width(); i++) {
+			for (int j = 0; j < map.height(); j++) {
+				set_explored(x + i, y + j, map.explored(i, j));
+			}
+		}
+	}
+
+	void merge_explored(const tile_map &map, const point &pos) {
+		merge_explored(map, pos.x, pos.y);
+	}
+
+	const tile_container &tiles() const { return _tiles; }
+
+	const explore_set &explores() const { return _explored; }
 
 private:
 	int _width;
 	int _height;
-	tile_list _tiles;
-
+	tile_container _tiles;
+	explore_set _explored;
 };
 
 }  // namespace rl

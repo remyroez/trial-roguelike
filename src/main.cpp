@@ -18,8 +18,15 @@ using tile_dictionary = rl::base_tile_dictionary<std::string>;
 
 tile_dictionary tdic;
 
+rl::tile::handle empty_tile;
+
 inline void render_tile(rl::tile::handle handle, int x = 0, int y = 0) {
 	if (auto ptr = handle.lock()) {
+		terminal_color(ptr->foreground.argb());
+		terminal_bkcolor(ptr->background.argb());
+		terminal_put(x, y, ptr->character);
+
+	} else if (auto ptr = empty_tile.lock()) {
 		terminal_color(ptr->foreground.argb());
 		terminal_bkcolor(ptr->background.argb());
 		terminal_put(x, y, ptr->character);
@@ -31,11 +38,21 @@ inline void render_tile(rl::tile::handle handle, float brightness, int x = 0, in
 		terminal_color((ptr->foreground * brightness).argb());
 		terminal_bkcolor((ptr->background * brightness).argb());
 		terminal_put(x, y, ptr->character);
+
+	} else if (auto ptr = empty_tile.lock()) {
+		terminal_color((ptr->foreground * brightness).argb());
+		terminal_bkcolor((ptr->background * brightness).argb());
+		terminal_put(x, y, ptr->character);
 	}
 }
 
 inline void render_tile(rl::tile::handle handle, const rl::color light, int x = 0, int y = 0) {
 	if (auto ptr = handle.lock()) {
+		terminal_color(ptr->foreground.blend(light).argb());
+		terminal_bkcolor(ptr->background.blend(light).argb());
+		terminal_put(x, y, ptr->character);
+
+	} else if (auto ptr = empty_tile.lock()) {
 		terminal_color(ptr->foreground.blend(light).argb());
 		terminal_bkcolor(ptr->background.blend(light).argb());
 		terminal_put(x, y, ptr->character);
@@ -45,7 +62,9 @@ inline void render_tile(rl::tile::handle handle, const rl::color light, int x = 
 void render_tile_map(const rl::tile_map map, int x = 0, int y = 0) {
 	for (int i = 0; i < map.width(); i++) {
 		for (int j = 0; j < map.height(); j++) {
-			render_tile(map.get(i, j), x + i, y + j);
+			if (map.explored(i, j)) {
+				render_tile(map.get(i, j), x + i, y + j);
+			}
 		}
 	}
 }
@@ -53,8 +72,10 @@ void render_tile_map(const rl::tile_map map, int x = 0, int y = 0) {
 void render_tile_map(const rl::tile_map map, std::shared_ptr<TCODMap> tcodmap, int x = 0, int y = 0) {
 	for (int i = 0; i < map.width(); i++) {
 		for (int j = 0; j < map.height(); j++) {
-			render_tile(map.get(i, j), (tcodmap->isInFov(x + i, y + j) ? 1.0f : 0.5f), x + i, y + j);
-			//(map.get(i, j), (tcodmap->isInFov(x + i, y + j) ? rl::color_white : rl::color_black), x + i, y + j);
+			if (map.explored(i, j)) {
+				render_tile(map.get(i, j), (tcodmap->isInFov(x + i, y + j) ? 1.0f : 0.5f), x + i, y + j);
+				//(map.get(i, j), (tcodmap->isInFov(x + i, y + j) ? rl::color_white : rl::color_black), x + i, y + j);
+			}
 		}
 	}
 }
@@ -62,8 +83,10 @@ void render_tile_map(const rl::tile_map map, std::shared_ptr<TCODMap> tcodmap, i
 void render_tile_map(const rl::tile_map map, const TCODMap &tcodmap, int x = 0, int y = 0) {
 	for (int i = 0; i < map.width(); i++) {
 		for (int j = 0; j < map.height(); j++) {
-			render_tile(map.get(i, j), (tcodmap.isInFov(x + i, y + j) ? 1.0f : 0.5f), x + i, y + j);
-			//render_tile(map.get(i, j), (tcodmap.isInFov(x + i, y + j) ? rl::color_white : rl::color_black), x + i, y + j);
+			if (map.explored(i, j)) {
+				render_tile(map.get(i, j), (tcodmap.isInFov(x + i, y + j) ? 1.0f : 0.5f), x + i, y + j);
+				//render_tile(map.get(i, j), (tcodmap.isInFov(x + i, y + j) ? rl::color_white : rl::color_black), x + i, y + j);
+			}
 		}
 	}
 }
@@ -133,6 +156,16 @@ void read_map(const rl::tile_map &tilemap, TCODMap &tcodmap) {
 	}
 }
 
+void explore_map(rl::tile_map &tilemap, const TCODMap &tcodmap) {
+	for (int i = 0; i < tilemap.width(); i++) {
+		for (int j = 0; j < tilemap.height(); j++) {
+			if (!tilemap.explored(i, j)) {
+				tilemap.set_explored(i, j, tcodmap.isInFov(i, j));
+			}
+		}
+	}
+}
+
 }
 
 TERMINAL_TAKE_CARE_OF_WINMAIN
@@ -152,8 +185,8 @@ void test_tile_map() {
 
 	tile_map room(10, 5, tdic.at("floor"));
 
-	map.set(room, 3, 3);
-	map.set(room, 5, 10);
+	map.merge(room, 3, 3);
+	map.merge(room, 5, 10);
 
 	render_tile_map(map, 3, 3);
 
@@ -207,7 +240,29 @@ void update_viewport(rl::tile_map &map, rl::actor &you, rl::rect &viewport) {
 	TCODMap fov(viewport.width, viewport.height);
 	read_map(view, fov);
 
-	fov.computeFov(viewport.width / 2, viewport.height / 2, 0, true, FOV_DIAMOND);
+	auto local_pos = rl::point{ viewport.width / 2, viewport.height / 2 };
+	fov.computeFov(local_pos.x, local_pos.y, 0, true, FOV_DIAMOND);
+
+	for (int i = -1; i < 2; ++i) {
+		for (int j = -1; j < 2; ++j) {
+			auto x = local_pos.x + i;
+			auto y = local_pos.y + j;
+			if (x < 0) {
+
+			} else if (y < 0) {
+
+			} else if (x >= fov.getWidth()) {
+
+			} else if (y >= fov.getHeight()) {
+
+			} else {
+				fov.setInFov(x, y, true);
+			}
+		}
+	}
+
+	explore_map(view, fov);
+	map.merge_explored(view, viewport.x, viewport.y);
 
 	render_tile_map(view, fov, 0, 0);
 
@@ -218,12 +273,13 @@ int main() {
 	terminal_open();
 
 	// Printing text
-	//terminal_set("window: size=40x25, cellsize=16x16, title='Nechrogue'");
+	terminal_set("window: size=80x45, cellsize=16x16, title='Roguelike'");
 
 	//terminal_set("jpn font: ./asset/misaki_gothic.ttf, size=8x8, hinting=none");
 	//terminal_set("font: ./asset/terminal8x8_gs_ro.png, size=8x8");
 	//terminal_set("font: ./asset/terminal16x16_gs_ro.png, size=16x16");
-	terminal_set("font: ./asset/terminal8x12_gs_ro.png, size=8x12");
+	//terminal_set("font: ./asset/terminal8x12_gs_ro.png, size=8x12");
+	terminal_set("font: ./asset/16x16_sm_ascii.png, size=16x16");
 
 	//terminal_color("gray");
 
@@ -233,6 +289,8 @@ int main() {
 	::tdic.emplace("floor", std::make_shared<rl::tile>(U'.', rl::color_gray, rl::color_black));
 	::tdic.emplace("tree", std::make_shared<rl::tile>(0x05, rl::color_green, rl::color_maroon, false, true));
 	::tdic.emplace("water", std::make_shared<rl::tile>(U'~', rl::color_teal, rl::color_navy, true, false));
+
+	::empty_tile = tdic.at("wall");
 
 	rl::tile_map map(50, 50, tdic.at("wall"));
 	map.set({ 1, 1, 5, 5 }, tdic.at("floor"));
@@ -246,7 +304,7 @@ int main() {
 
 	map.set({ 23, 3, 1, 10 }, tdic.at("water"));
 
-	rl::rect viewport = { 0, 0, 50 - 1, 25 - 1 };
+	rl::rect viewport = { 0, 0, 45, 45 };
 
 	rl::actor you(tdic.at("you"), {3, 3});
 
@@ -262,7 +320,7 @@ int main() {
 
 		bool update = false;
 
-		auto move_position = you.point();
+		auto move_position = you.position();
 
 		switch (key) {
 		case TK_ESCAPE:
@@ -315,9 +373,9 @@ int main() {
 			break;
 		}
 
-		if (you.point() != move_position) {
+		if (you.position() != move_position) {
 			if (map.get(move_position.x, move_position.y).lock()->walkable) {
-				you.set_point(move_position);
+				you.set_position(move_position);
 			}
 			update = true;
 		}

@@ -22,31 +22,31 @@ public:
 
 	actor() = default;
 
-	actor(tile::handle tile, const point &point) : _tile(tile), _point(point) {}
+	actor(tile::handle tile, const point &position) : _tile(tile), _position(position) {}
 
 	tile::handle tile() const { return _tile; }
 
-	const point &point() const { return _point; }
+	const point &position() const { return _position; }
 
-	void set_point(const rl::point &point) { _point = point; }
+	void set_position(const rl::point &position) { _position = position; }
 
-	void move(const rl::point &point) { _point += point; }
+	void move(const rl::point &position) { _position += position; }
 
-	int x() const { return point().x; }
+	int x() const { return position().x; }
 
-	int y() const { return point().y; }
+	int y() const { return position().y; }
 
-	void set_x(int x) { _point.x = x; }
+	void set_x(int x) { _position.x = x; }
 
-	void set_y(int y) { _point.y = y; }
+	void set_y(int y) { _position.y = y; }
 
-	void move_x(int x) { _point.x += x; }
+	void move_x(int x) { _position.x += x; }
 
-	void move_y(int y) { _point.y += y; }
+	void move_y(int y) { _position.y += y; }
 
 private:
 	tile::handle _tile;
-	rl::point _point;
+	rl::point _position;
 };
 
 }  // namespace rl
