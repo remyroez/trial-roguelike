@@ -8,38 +8,40 @@ struct point {
 	int x;
 	int y;
 
-	point operator - () {
+	constexpr point operator - () {
 		return { -x, -y };
 	}
 
-	point &operator += (const point &rhs) {
+	constexpr point &operator += (const point &rhs) {
 		x += rhs.x;
 		y += rhs.y;
 		return *this;
 	}
 
-	point &operator -= (const point &rhs) {
+	constexpr point &operator -= (const point &rhs) {
 		x -= rhs.x;
 		y -= rhs.y;
 		return *this;
 	}
 
-	point operator + (const point &rhs) const {
+	constexpr point operator + (const point &rhs) const {
 		return { x + rhs.x, y + rhs.y };
 	}
 
-	point operator - (const point &rhs) const {
+	constexpr point operator - (const point &rhs) const {
 		return { x - rhs.x, y - rhs.y };
 	}
 
-	bool operator == (const point &rhs) const {
+	constexpr bool operator == (const point &rhs) const {
 		return (x == rhs.x) && (y == rhs.y);
 	}
 
-	bool operator != (const point &rhs) const {
+	constexpr bool operator != (const point &rhs) const {
 		return !(*this == rhs);
 	}
 };
+
+static constexpr point point_zero = { 0, 0 };
 
 }  // namespace rl
 

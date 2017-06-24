@@ -13,9 +13,50 @@
 
 namespace {
 
+constexpr int max_room_size = 12;
+constexpr int min_room_size = 6;
+
 using tile_dictionary = rl::base_tile_dictionary<std::string>;
 
 tile_dictionary tdic;
+
+class bsp_listener : public ITCODBspCallback {
+public:
+	bsp_listener(rl::tile_map &map)
+		: _map(map), _floor_tile(::tdic.at("floor")), _last_x(0), _last_y(0), _num_rooms(0), _first_position{ 0, 0 }
+	{}
+
+	bool visitNode(TCODBsp *node, void *userData) override {
+		if (node->isLeaf()) {
+			auto randomizer = TCODRandom::getInstance();
+			int w = randomizer->getInt(min_room_size, node->w - 2);
+			int h = randomizer->getInt(min_room_size, node->h - 2);
+			int x = randomizer->getInt(node->x + 1, node->x + node->w - w - 1);
+			int y = randomizer->getInt(node->y + 1, node->y + node->h - h - 1);
+			_map.set({ x, y, w - 1, h - 1 }, _floor_tile);
+			if (_num_rooms != 0) {
+				_map.set({ _last_x, _last_y, x + w / 2 - _last_x, 1 }, _floor_tile);
+				_map.set({ x + w / 2, _last_y, 1, y + h / 2 - _last_y }, _floor_tile);
+
+			} else {
+				_first_position = { x + w / 2, y + h / 2 };
+			}
+			_last_x = x + w / 2;
+			_last_y = y + h / 2;
+			_num_rooms++;
+		}
+		return true;
+	}
+
+	const rl::point &first_position() const { return _first_position; }
+
+private:
+	rl::tile_map &_map;
+	rl::tile::handle _floor_tile;
+	int _last_x, _last_y;
+	int _num_rooms;
+	rl::point _first_position;
+};
 
 rl::tile::handle empty_tile;
 
@@ -136,8 +177,10 @@ void render_frame(const rl::frame frame, const rl::rect rect) {
 void read_map(const rl::tile_map &tilemap, std::shared_ptr<TCODMap> tcodmap) {
 	for (int i = 0; i < tilemap.width(); i++) {
 		for (int j = 0; j < tilemap.height(); j++) {
-			auto handle = tilemap.get(i, j);
-			if (auto ptr = handle.lock()) {
+			if (auto ptr = tilemap.get(i, j).lock()) {
+				tcodmap->setProperties(i, j, ptr->transparent, ptr->walkable);
+
+			} else if (auto ptr = ::empty_tile.lock()) {
 				tcodmap->setProperties(i, j, ptr->transparent, ptr->walkable);
 			}
 		}
@@ -147,8 +190,10 @@ void read_map(const rl::tile_map &tilemap, std::shared_ptr<TCODMap> tcodmap) {
 void read_map(const rl::tile_map &tilemap, TCODMap &tcodmap) {
 	for (int i = 0; i < tilemap.width(); i++) {
 		for (int j = 0; j < tilemap.height(); j++) {
-			auto handle = tilemap.get(i, j);
-			if (auto ptr = handle.lock()) {
+			if (auto ptr = tilemap.get(i, j).lock()) {
+				tcodmap.setProperties(i, j, ptr->transparent, ptr->walkable);
+
+			} else if (auto ptr = ::empty_tile.lock()) {
 				tcodmap.setProperties(i, j, ptr->transparent, ptr->walkable);
 			}
 		}
@@ -289,9 +334,11 @@ int main() {
 	::tdic.emplace("tree", std::make_shared<rl::tile>(0x05, rl::color_green, rl::color_maroon, false, true));
 	::tdic.emplace("water", std::make_shared<rl::tile>(U'~', rl::color_teal, rl::color_navy, true, false));
 
-	::empty_tile = tdic.at("wall");
+	//::empty_tile = tdic.at("wall");
 
 	rl::tile_map map(50, 50, tdic.at("wall"));
+
+#if 0
 	map.set({ 1, 1, 5, 5 }, tdic.at("floor"));
 	map.set({ 7, 1, 8, 8 }, tdic.at("floor"));
 	map.set({ 16, 1, 12, 12 }, tdic.at("floor"));
@@ -302,10 +349,17 @@ int main() {
 	map.set({ 20, 5, 5, 5 }, tdic.at("tree"));
 
 	map.set({ 23, 3, 1, 10 }, tdic.at("water"));
+#else
+	TCODBsp bsp(0, 0, map.width(), map.height());
+	bsp.splitRecursive(nullptr, 8, ::max_room_size, ::max_room_size, 1.5f, 1.5f);
+
+	bsp_listener listener(map);
+	bsp.traverseInvertedLevelOrder(&listener, nullptr);
+#endif
 
 	rl::rect viewport = { 0, 0, 45, 45 };
 
-	rl::actor you(tdic.at("you"), {3, 3});
+	rl::actor you(tdic.at("you"), listener.first_position());
 
 	update_viewport(map, you, viewport);
 
@@ -317,9 +371,11 @@ int main() {
 		bool released = (key & TK_KEY_RELEASED) != 0;
 		key = key & 0xFF;
 
+		bool shift = terminal_state(TK_SHIFT) != 0;
+
 		bool update = false;
 
-		auto move_position = you.position();
+		auto move_position = rl::point_zero;
 
 		switch (key) {
 		case TK_ESCAPE:
@@ -372,9 +428,15 @@ int main() {
 			break;
 		}
 
-		if (you.position() != move_position) {
-			if (map.get(move_position.x, move_position.y).lock()->walkable) {
-				you.set_position(move_position);
+		if (move_position == rl::point_zero) {
+
+		} else {
+			auto position = you.position();
+			position.x = std::max(0, std::min(position.x + move_position.x, map.width() - 1));
+			position.y = std::max(0, std::min(position.y + move_position.y, map.height() - 1));
+
+			if (shift || map.get(position.x, position.y).lock()->walkable) {
+				you.set_position(position);
 			}
 			update = true;
 		}
