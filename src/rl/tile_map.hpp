@@ -184,7 +184,7 @@ public:
 		for (int i = 0; i < map.width(); i++) {
 			for (int j = 0; j < map.height(); j++) {
 				set(x + i, y + j, map.get(i, j));
-				set_explored(x + i, y + j, map.explored(i, j));
+				if (map.explored(i, j)) set_explored(x + i, y + j, map.explored(i, j));
 			}
 		}
 	}
@@ -196,7 +196,7 @@ public:
 	void merge_explored(const tile_map &map, int x = 0, int y = 0) {
 		for (int i = 0; i < map.width(); i++) {
 			for (int j = 0; j < map.height(); j++) {
-				set_explored(x + i, y + j, map.explored(i, j));
+				if (map.explored(i, j)) set_explored(x + i, y + j, map.explored(i, j));
 			}
 		}
 	}
